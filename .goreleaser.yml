@@ -29,13 +29,13 @@ builds:
       - linux
 
 archives:
-  - id: "taeus-apt-transport-rclone"
+  - id: "apt-transport-rclone"
     builds: ["rclone"]
     files:
       - README.md
     format: tar.gz
 checksum:
-  name_template: "taeus-sigproc-tools_{{ .Version }}_checksums.sha256sum"
+  name_template: "apt-transport-rclone_{{ .Version }}_checksums.sha256sum"
 snapshot:
   name_template: "{{ .Tag }}-next"
 changelog:
@@ -53,7 +53,7 @@ nfpms:
     vendor: "Endra Life Sciences Inc."
     homepage: "https://www.endrainc.com"
     maintainer: "Jeremy Gill <jgill@endrainc.com>"
-    description: "Taeus rclone-based apt-transport plugin"
+    description: "rclone-based apt-transport plugin"
     formats:
       - deb
     section: default
