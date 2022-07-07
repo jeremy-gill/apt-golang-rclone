@@ -1,28 +1,21 @@
-# apt-golang-s3
+# apt-golang-rclone
 
-_An s3 transport method for the `apt` package management system_
+_An [rclone](https://www.rclone.org) transport method for the `apt` package management system_
 
-[![Build Status](https://travis-ci.org/google/apt-golang-s3.svg?branch=master)](https://travis-ci.org/google/apt-golang-s3)
+[![Build Status](https://travis-ci.org/google/apt-golang-rclone.svg?branch=master)](https://travis-ci.org/google/apt-golang-s3)
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/apt-golang-s3)](https://goreportcard.com/report/github.com/google/apt-golang-s3)
 [![GoDoc](https://godoc.org/github.com/google/apt-golang-s3?status.svg)](https://godoc.org/github.com/google/apt-golang-s3)
 
-The apt-golang-s3 project provides support for hosting private
+The apt-golang-rclone project is a fork of [apt-golang-s3](https://github.com/google/apt-golang-s3) and provides support for hosting private
 [apt](https://en.wikipedia.org/wiki/APT_(Debian)) repositories in
-[Amazon S3](https://aws.amazon.com/s3/). This is useful if you have private
+[rclone-compatible](https://www.rclone.org) storage interfaces. This is useful if you have private
 packages, vendored public packages, or forks of public packages that your
-software or business depend on. There are several opensource projects that
-solve this problem, but they come with some limitations.
-
-1. They are unmaintained.
-1. They don't support the S3v4 request signature method.
-1. They are written in a language that requires a runtime or other dependencies.
-
-This project is an attempt to address those limitations.
+software or business depend on. This project started as a fork of an s3-specific package, but has been rewritten to use rclone instead.
 
 ## TL;DR
-1. Build the binary `$ go build -o apt-golang-s3 main.go`
-1. Install the binary `$ sudo cp apt-golang-s3 /usr/lib/apt/methods/s3`
-1. Add your s3 based source to a package list `$ echo "deb s3://access-key:access-secret@s3.amazonaws.com/private-repo-bucket stable main" > /etc/apt/sources.list.d/private-repo.list`
+1. Build the binary `$ go build -o apt-golang-rclone main.go`
+1. Install the binary `$ sudo cp apt-golang-rclone /usr/lib/apt/methods/rclone`
+1. Add your s3 based source to a package list `$ echo "deb rclone://storage-endpoint/private-repo-bucket stable main" > /etc/apt/sources.list.d/private-repo.list`
 1. Update and install packages `$ sudo apt-get update && sudo apt-get install your-private-package`
 
 ## Building the go program
@@ -34,25 +27,25 @@ in a sandboxed environment:
 $ ls
 Dockerfile  main.go  method  README.md
 
-$ docker build -t apt-golang-s3 .
+$ docker build -t apt-golang-rclone .
 ...
 
-$ docker run -it --rm -v $(pwd):/app apt-golang-s3 bash
+$ docker run -it --rm -v $(pwd):/app apt-golang-rclone bash
 
 root@83823fffd369:/app# ls
 Dockerfile  README.md  build-deb.sh  go.mod  go.sum  main.go  method
 
-root@83823fffd369:/app# go build -o apt-golang-s3 main.go
+root@83823fffd369:/app# go build -o apt-golang-rclone main.go
 ...
 
 root@83823fffd369:/app# ls
-Dockerfile  README.md  apt-golang-s3  build-deb.sh  go.mod  go.sum  main.go  method
+Dockerfile  README.md  apt-golang-rclone  build-deb.sh  go.mod  go.sum  main.go  method
 
 root@83823fffd369:/app# exit
 exit
 
 $ ls
-apt-golang-s3  build-deb.sh  Dockerfile  go.mod  go.sum  main.go  method  README.md
+apt-golang-rclone  build-deb.sh  Dockerfile  go.mod  go.sum  main.go  method  README.md
 ```
 
 ## Building a debian package
@@ -64,20 +57,20 @@ the binary and package it as a .deb.
 $ ls
 build-deb.sh  Dockerfile  go.mod  go.sum  main.go  method  README.md
 
-$ docker build -t apt-golang-s3 .
+$ docker build -t apt-golang-rclone .
 
-$ docker run -it --rm -v $(pwd):/app apt-golang-s3 /app/build-deb.sh
+$ docker run -it --rm -v $(pwd):/app apt-golang-rclone /app/build-deb.sh
 ...
-Created package {:path=>"apt-golang-s3_1_amd64.deb"}
+Created package {:path=>"apt-golang-rclone_1_amd64.deb"}
 
 $ ls
-apt-golang-s3  apt-golang-s3_1_amd64.deb  build-deb.sh  Dockerfile  go.mod  go.sum  main.go  method  README.md
+apt-golang-rclone  apt-golang-rclone_1_amd64.deb  build-deb.sh  Dockerfile  go.mod  go.sum  main.go  method  README.md
 ```
 
 ## Installing in production
 
-The `apt-golang-s3` binary is an executable. To install it copy it to
-`/usr/lib/apt/methods/s3` on your computer. The .deb file produced by
+The `apt-golang-rclone` binary is an executable. To install it copy it to
+`/usr/lib/apt/methods/rclone` on your computer. The .deb file produced by
 `build-deb.sh` will install the method in the correct place.
 
 

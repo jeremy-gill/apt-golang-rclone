@@ -17,7 +17,7 @@
 set -e # Exit on non-zero return codes
 set -u # Exit on undefined variables
 
-PACKAGE_NAME=apt-golang-s3
+PACKAGE_NAME=apt-golang-rclone
 VERSION=${1:-1}
 
 go get
@@ -29,11 +29,11 @@ chmod +x ./$PACKAGE_NAME
 fpm -s dir \
   --output-type deb \
   --force \
-  --description "An apt transport method for downloading packages from repositories hosted in s3. Written in Go." \
+  --description "An apt transport method for downloading packages from repositories hosted in rclone. Written in Go." \
   --name $PACKAGE_NAME \
   --version $VERSION \
   --maintainer fabric-infrastructure-team \
-  --replaces apt-transport-s3 \
-  --url https://github.com/google/apt-golang-s3 \
-  --vendor "Google Fabric" \
-  ./$PACKAGE_NAME=/usr/lib/apt/methods/s3 ${@:3}
+  --replaces apt-transport-clone \
+  --url https://github.com/jeremy-gill/apt-golang-rclone \
+  --vendor "Jeremy Gill" \
+  ./$PACKAGE_NAME=/usr/lib/apt/methods/rclone ${@:3}

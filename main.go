@@ -1,4 +1,4 @@
-// Copyright 2018 Google LLC
+// Copyright 2022 Jeremy Gill
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Binary apt-golang-s3 implements the APT method interface in order to
-// allow hosting of APT packages in Amazon S3. For more information about
+// Binary apt-golang-clone implements the APT method interface in order to
+// allow hosting of APT packages in rclone storage instances. For more information about
 // the APT method interface see, http://www.fifi.org/doc/libapt-pkg-doc/method.html/ch2.html#s2.3.
 package main
 
@@ -38,7 +38,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("apt-golang-s3 %s (Go version: %s)\n", version, runtime.Version())
+		fmt.Printf("apt-golang-rclone %s (Go version: %s)\n", version, runtime.Version())
 		os.Exit(0)
 	}
 
