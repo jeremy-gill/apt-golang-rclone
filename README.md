@@ -15,38 +15,8 @@ software or business depend on. This project started as a fork of an s3-specific
 ## TL;DR
 1. Build the binary `$ go build -o apt-golang-rclone main.go`
 1. Install the binary `$ sudo cp apt-golang-rclone /usr/lib/apt/methods/rclone`
-1. Add your s3 based source to a package list `$ echo "deb rclone://storage-endpoint/private-repo-bucket stable main" > /etc/apt/sources.list.d/private-repo.list`
+1. Add your rclone-based source to a package list `$ echo "deb rclone://storage-endpoint/private-repo-bucket stable main" > /etc/apt/sources.list.d/private-repo.list`
 1. Update and install packages `$ sudo apt-get update && sudo apt-get install your-private-package`
-
-## Building the go program
-
-There is an included Dockerfile to setup an environment for building the binary
-in a sandboxed environment:
-
-```
-$ ls
-Dockerfile  main.go  method  README.md
-
-$ docker build -t apt-golang-rclone .
-...
-
-$ docker run -it --rm -v $(pwd):/app apt-golang-rclone bash
-
-root@83823fffd369:/app# ls
-Dockerfile  README.md  build-deb.sh  go.mod  go.sum  main.go  method
-
-root@83823fffd369:/app# go build -o apt-golang-rclone main.go
-...
-
-root@83823fffd369:/app# ls
-Dockerfile  README.md  apt-golang-rclone  build-deb.sh  go.mod  go.sum  main.go  method
-
-root@83823fffd369:/app# exit
-exit
-
-$ ls
-apt-golang-rclone  build-deb.sh  Dockerfile  go.mod  go.sum  main.go  method  README.md
-```
 
 ## Building a debian package
 
