@@ -52,7 +52,7 @@ Config-Item: Unattended-Upgrade::Allowed-Origins::=${distro_id}:${distro_codenam
 `
 
 	rcloneMsg = `600 URI Acquire
-URI: rclone:minio:apt-repo/dists/stable/main/binary-amd64/Packages
+URI: rclone://minio/apt-repo/dists/stable/main/binary-amd64/Packages
 Filename: /tmp/Packages
 
 601 Configuration
@@ -116,25 +116,6 @@ func TestRclone(t *testing.T) {
 	}
 }
 
-func TestSettingRegion(t *testing.T) {
-	reader := strings.NewReader(configMsg)
-	method := New()
-	go method.readInput(reader)
-
-	//consume the messages on the channel
-	for {
-		bytes := <-method.msgChan
-		method.handleBytes(bytes)
-		if reader.Len() == 0 {
-			break
-		}
-	}
-	expected := "us-east-2"
-	if method.region != expected {
-		t.Errorf("method.region = %s; expected %s", method.region, expected)
-	}
-}
-
 type locTest struct {
 	url             string
 	accessKey       string
@@ -169,18 +150,3 @@ var locTests = []locTest{
 	},
 }
 
-func TestCreateLocation(t *testing.T) {
-	for _, lt := range locTests {
-		l, err := newLocation(lt.url, "s3.amazonaws.com")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if l.uri.User.Username() != lt.accessKey {
-			t.Errorf("unexpected accessKey: got %s, want %s", l.uri.User.Username(), lt.accessKey)
-		}
-		pass, _ := l.uri.User.Password()
-		if pass != lt.accessKeySecret {
-			t.Errorf("unexpected accessKeySecret: got %s, want %s", pass, lt.accessKeySecret)
-		}
-	}
-}

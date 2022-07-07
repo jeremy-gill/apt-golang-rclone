@@ -39,16 +39,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/google/apt-golang-s3/message"
 
-	//	"github.com/google/apt-golang-s3/message"
 	_ "github.com/rclone/rclone/backend/all"
 	_ "github.com/rclone/rclone/backend/drive"
 	_ "github.com/rclone/rclone/backend/local"
@@ -239,71 +232,11 @@ type objectLocation struct {
 	key    string
 }
 
-func newLocation(value, s3Hostname string) (objectLocation, error) {
-	uri, err := url.Parse(preProcessURL(value))
-	if err != nil {
-		return objectLocation{}, err
-	}
-	if uri.Host == s3Hostname {
-		tokens := strings.Split(uri.Path, "/")
-
-		// splitting "/bucket/this/is/a/path" on "/" produces
-		// ["", "bucket", "this", "is", "a", "path"]
-		// Note the initial empty string
-		if len(tokens) < 3 {
-			return objectLocation{}, errors.New("location missing required number of tokens")
-		}
-
-		// the first non-zero length string is assumed to be the bucket. the rest are
-		// concatenated back together as the path to the object in the bucket
-		return objectLocation{
-			uri:    uri,
-			bucket: tokens[1],
-			key:    strings.Join(tokens[2:], "/"),
-		}, nil
-	}
-
-	if strings.HasSuffix(uri.Host, s3Hostname) {
-		return objectLocation{
-			uri:    uri,
-			bucket: strings.TrimSuffix(uri.Host, "."+s3Hostname),
-			key:    uri.Path[1:],
-		}, nil
-	}
-
-	return objectLocation{
-		uri:    uri,
-		bucket: uri.Host,
-		key:    uri.Path[1:],
-	}, nil
-}
-
-// replace any forward slashes in access key and secret
-func preProcessURL(url string) string {
-	idx := strings.Index(url, "@")
-	if idx < 0 {
-		return url
-	}
-	sub := url[0:idx] // drop everything after the @
-	sub = sub[5:]     // drop the s3://
-
-	key := ""
-	secret := ""
-	tkns := strings.Split(sub, ":")
-	if len(tkns) == 2 {
-		key = tkns[0]
-		secret = tkns[1]
-	}
-	processedKey := strings.ReplaceAll(key, "/", "%2F")
-	processedSecret := strings.ReplaceAll(secret, "/", "%2F")
-
-	p := strings.ReplaceAll(url, key, processedKey)
-	p = strings.ReplaceAll(p, secret, processedSecret)
-	return p
-}
-
 // uriAcquire downloads and stores objects from an rclone-based URI based on the contents
 // of the provided Message.
+//
+// Use a repo like this:
+//   deb [trusted=yes] rclone://minio/apt-repo stable main
 func (m *Method) uriAcquire(msg *message.Message) {
 	m.waitForConfiguration()
 
@@ -320,18 +253,30 @@ func (m *Method) uriAcquire(msg *message.Message) {
 	// split source URI
 	uri2 := strings.Split(uri, ":")
 
-	if len(uri2) < 3 {
-		m.handleError(fmt.Errorf("invalid rclone uri: %s", uri))
+	if len(uri2) < 2 {
+		m.handleError(fmt.Errorf("(257) invalid rclone uri: %s", uri))
 		return
 	}
 
 	if uri2[0] != "rclone" {
-		m.handleError(fmt.Errorf("invalid rclone uri: %s", uri))
+		m.handleError(fmt.Errorf("(262) invalid rclone uri: %s", uri))
 		return
 	}
 
-	remote := uri2[1]
-	_infile := uri2[2]
+	if !strings.HasPrefix(uri2[1], "//") {
+		m.handleError(fmt.Errorf("(262) invalid rclone uri: %s", uri))
+		return
+	}
+
+	uri3 := strings.Split(uri2[1][2:], "/")
+	if len(uri3) < 2 {
+		m.handleError(fmt.Errorf("(268) invalid rclone uri: %s", uri))
+		return
+
+	}
+
+	remote := uri3[0]
+	_infile := strings.Join(uri3[1:], "/")
 
 	// create rclone fs objects
 	fsrc, err := fs.NewFs(m.rcloneCtx, remote+":")
@@ -362,6 +307,7 @@ func (m *Method) uriAcquire(msg *message.Message) {
 	// indicate size and modification time
 	m.outputURIStart(uri, o.Size(), o.ModTime(m.rcloneCtx))
 
+	// actually copy file from remote rclone storage to local disk
 	err = operations.CopyFile(m.rcloneCtx, fdst, fsrc, _outfile, _infile)
 
 	if err != nil {
@@ -369,31 +315,6 @@ func (m *Method) uriAcquire(msg *message.Message) {
 	}
 
 	m.outputURIDone(uri, o.Size(), o.ModTime(m.rcloneCtx), dst)
-}
-
-// s3Client provides an initialized s3iface.S3API based on the contents of the
-// provided url.URL. The access key id and secret access key are assumed to
-// correspond to the Username() and Password() functions on the URL's User.
-func (m *Method) s3Client(user *url.Userinfo) s3iface.S3API {
-	config := &aws.Config{
-		Region: aws.String(m.region),
-	}
-	sess, err := session.NewSession(config)
-	if err != nil {
-		m.handleError(fmt.Errorf("creating AWS session: %w", err))
-	}
-	if accessKeyID := user.Username(); accessKeyID != "" {
-		// Use explicitly specified static credentials to access S3
-		if secretAccessKey, ok := user.Password(); ok {
-			config.Credentials = credentials.NewStaticCredentials(accessKeyID, secretAccessKey, "")
-		} else {
-			m.handleError(errors.New("acquire message missing required value: Password"))
-		}
-	} else if m.roleARN != "" {
-		// Use default credential chain to assume specified role
-		config.Credentials = stscreds.NewCredentials(sess, m.roleARN)
-	}
-	return s3.New(sess, config)
 }
 
 // configure loops though the Config-Item fields of a configuration Message and
