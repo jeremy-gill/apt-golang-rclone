@@ -36,8 +36,8 @@ builds:
 #    format: tar.gz
 checksum:
   name_template: "apt-transport-rclone_{{ .Version }}_checksums.sha256sum"
-snapshot:
-  name_template: "{{ .Tag }}-next"
+#snapshot:
+#  name_template: "{{ .Tag }}-next"
 changelog:
   sort: asc
   filters:
