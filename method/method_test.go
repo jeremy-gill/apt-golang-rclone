@@ -50,6 +50,22 @@ Config-Item: Aptitude::Get-Root-Command=sudo:/usr/bin/sudo
 Config-Item: Unattended-Upgrade::Allowed-Origins::=${distro_id}:${distro_codename}-security
 
 `
+
+	rcloneMsg = `600 URI Acquire
+URI: rclone:minio:apt-repo/dists/stable/main/binary-amd64/Packages
+Filename: /tmp/Packages
+
+601 Configuration
+Config-Item: Dir::Log=var/log/apt
+Config-Item: Dir::Log::Terminal=term.log
+Config-Item: Dir::Log::History=history.log
+Config-Item: Dir::Ignore-Files-Silently::=~$
+Config-Item: Acquire::cdrom::mount=/media/cdrom
+Config-Item: Acquire::s3::region=us-east-2
+Config-Item: Aptitude::Get-Root-Command=sudo:/usr/bin/sudo
+Config-Item: Unattended-Upgrade::Allowed-Origins::=${distro_id}:${distro_codename}-security
+
+`
 )
 
 func TestCapabilities(t *testing.T) {
@@ -80,6 +96,23 @@ loop:
 
 	if msgs != 2 {
 		t.Errorf("Found %d messages; expected %d", msgs, 2)
+	}
+}
+
+func TestRclone(t *testing.T) {
+	reader := strings.NewReader(rcloneMsg)
+	method := New()
+	go method.readInput(reader)
+
+	//consume the messages on the channel
+	for {
+		bytes := <-method.msgChan
+		go method.handleBytes(bytes)
+	}
+	method.wg.Wait()
+	expected := "us-east-2"
+	if method.region != expected {
+		t.Errorf("method.region = %s; expected %s", method.region, expected)
 	}
 }
 

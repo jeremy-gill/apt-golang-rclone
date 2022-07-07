@@ -20,6 +20,7 @@ package method
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -32,22 +33,28 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-
 	"github.com/google/apt-golang-s3/message"
+
+	//	"github.com/google/apt-golang-s3/message"
+	_ "github.com/rclone/rclone/backend/all"
+	_ "github.com/rclone/rclone/backend/drive"
+	_ "github.com/rclone/rclone/backend/local"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/configfile"
+	"github.com/rclone/rclone/fs/operations"
 )
 
 const (
@@ -96,7 +103,7 @@ const (
 	fieldValueTrue       = "true"
 	fieldValueYes        = "yes"
 	fieldValueNotFound   = "The specified key does not exist."
-	fieldValueConnecting = "Connecting to s3.amazonaws.com"
+	fieldValueConnecting = "Connecting to rclone remote"
 )
 
 const (
@@ -112,6 +119,7 @@ type Method struct {
 	configured      bool
 	wg              *sync.WaitGroup
 	stdout          *log.Logger
+	rcloneCtx       context.Context
 }
 
 // New returns a new Method configured to read from os.Stdin and write to
@@ -125,7 +133,11 @@ func New() *Method {
 		configured: false,
 		wg:         &wg,
 		stdout:     log.New(os.Stdout, "", 0),
+		rcloneCtx:  context.Background(),
 	}
+
+	// initialize rclone
+	configfile.Install()
 
 	return m
 }
@@ -290,7 +302,7 @@ func preProcessURL(url string) string {
 	return p
 }
 
-// uriAcquire downloads and stores objects from S3 based on the contents
+// uriAcquire downloads and stores objects from an rclone-based URI based on the contents
 // of the provided Message.
 func (m *Method) uriAcquire(msg *message.Message) {
 	m.waitForConfiguration()
@@ -300,55 +312,63 @@ func (m *Method) uriAcquire(msg *message.Message) {
 		m.handleError(errors.New("acquire message missing required field: URI"))
 	}
 
-	s3URL, err := s3EndpointURL(m.region)
-	if err != nil {
-		m.handleError(fmt.Errorf("resolving S3 endpoint for region %s: %w", m.region, err))
-	}
-
-	ol, err := newLocation(uri, s3URL.Hostname())
-	m.handleError(err)
-
-	m.outputRequestStatus(ol.uri, fieldValueConnecting)
-
-	client := m.s3Client(ol.uri.User)
-
-	headObjectInput := &s3.HeadObjectInput{Bucket: &ol.bucket, Key: &ol.key}
-	headObjectOutput, err := client.HeadObject(headObjectInput)
-	if err != nil {
-		if reqErr, ok := err.(awserr.RequestFailure); ok {
-			if reqErr.StatusCode() == 404 {
-				m.outputNotFound(ol.uri)
-				return
-			}
-			// if the error is an awserr.RequestFailure, but the status was not 404
-			// handle the error
-			m.handleError(err)
-		} else {
-			m.handleError(err)
-		}
-	}
-
-	expectedLen := *headObjectOutput.ContentLength
-	lastModified := *headObjectOutput.LastModified
-	m.outputURIStart(ol.uri, expectedLen, lastModified)
-
-	filename, hasField := msg.GetFieldValue(fieldNameFilename)
+	dst, hasField := msg.GetFieldValue(fieldNameFilename)
 	if !hasField {
 		m.handleError(errors.New("acquire message missing required field: Filename"))
 	}
-	file, err := os.Create(filename)
-	m.handleError(err)
-	defer file.Close()
 
-	downloader := s3manager.NewDownloaderWithClient(client)
-	numBytes, err := downloader.Download(file,
-		&s3.GetObjectInput{
-			Bucket: aws.String(ol.bucket),
-			Key:    aws.String(ol.key),
-		})
-	m.handleError(err)
+	// split source URI
+	uri2 := strings.Split(uri, ":")
 
-	m.outputURIDone(ol.uri, numBytes, lastModified, filename)
+	if len(uri2) < 3 {
+		m.handleError(fmt.Errorf("invalid rclone uri: %s", uri))
+		return
+	}
+
+	if uri2[0] != "rclone" {
+		m.handleError(fmt.Errorf("invalid rclone uri: %s", uri))
+		return
+	}
+
+	remote := uri2[1]
+	_infile := uri2[2]
+
+	// create rclone fs objects
+	fsrc, err := fs.NewFs(m.rcloneCtx, remote+":")
+
+	if err != nil {
+		m.handleError(fmt.Errorf("rclone error: %w", err))
+	}
+
+	// split destination
+	_dir, _outfile := filepath.Split(dst)
+
+	fdst, err := fs.NewFs(m.rcloneCtx, _dir)
+
+	if err != nil {
+		m.handleError(fmt.Errorf("rclone error: %w", err))
+	}
+
+	// indicate we're starting the copy
+	m.outputRequestStatus(uri, fieldValueConnecting)
+
+	// does source object exist?
+	o, err := fsrc.NewObject(m.rcloneCtx, _infile)
+
+	if err != nil {
+		m.outputNotFound(uri)
+	}
+
+	// indicate size and modification time
+	m.outputURIStart(uri, o.Size(), o.ModTime(m.rcloneCtx))
+
+	err = operations.CopyFile(m.rcloneCtx, fdst, fsrc, _outfile, _infile)
+
+	if err != nil {
+		m.outputGeneralFailure(err)
+	}
+
+	m.outputURIDone(uri, o.Size(), o.ModTime(m.rcloneCtx), dst)
 }
 
 // s3Client provides an initialized s3iface.S3API based on the contents of the
@@ -401,9 +421,9 @@ func (m *Method) configure(msg *message.Message) {
 // 102 Status
 // URI: s3://fake-access-key-id:fake-secret-access-key@s3.amazonaws.com/bucket-name/apt/trusty/riemann-sumd_0.7.2-1_all.deb
 // Message: Connecting to s3.amazonaws.com
-func requestStatus(s3Uri *url.URL, status string) *message.Message {
+func requestStatus(uri string, status string) *message.Message {
 	h := header(headerCodeStatus, headerDescriptionStatus)
-	uriField := field(fieldNameURI, s3Uri.String())
+	uriField := field(fieldNameURI, uri)
 	messageField := field(fieldNameMessage, status)
 	return &message.Message{Header: h, Fields: []*message.Field{uriField, messageField}}
 }
@@ -415,9 +435,9 @@ func requestStatus(s3Uri *url.URL, status string) *message.Message {
 // URI: s3://fake-access-key-id:fake-secret-access-key@s3.amazonaws.com/bucket-name/apt/trusty/riemann-sumd_0.7.2-1_all.deb
 // Size: 9012
 // Last-Modified: Thu, 25 Oct 2018 20:17:39 GMT
-func (m *Method) uriStart(s3Uri *url.URL, size int64, t time.Time) *message.Message {
+func (m *Method) uriStart(s3Uri string, size int64, t time.Time) *message.Message {
 	h := header(headerCodeURIStart, headerDescriptionURIStart)
-	uriField := field(fieldNameURI, s3Uri.String())
+	uriField := field(fieldNameURI, s3Uri)
 	sizeField := field(fieldNameSize, strconv.FormatInt(size, 10))
 	lmField := m.lastModified(t)
 	return &message.Message{Header: h, Fields: []*message.Field{uriField, sizeField, lmField}}
@@ -436,9 +456,9 @@ func (m *Method) uriStart(s3Uri *url.URL, size int64, t time.Time) *message.Mess
 // SHA1-Hash: 0d02ab49503be20d153cea63a472c43ebfad2efc
 // SHA256-Hash: 92a3f70eb1cf2c69880988a8e74dc6fea7e4f15ee261f74b9be55c866f69c64b
 // SHA512-Hash: ab3b1c94618cb58e2147db1c1d4bd3472f17fb11b1361e77216b461ab7d5f5952a5c6bb0443a1507d8ca5ef1eb18ac7552d0f2a537a0d44b8612d7218bf379fb
-func (m *Method) uriDone(s3Uri *url.URL, size int64, t time.Time, filename string) *message.Message {
+func (m *Method) uriDone(s3Uri string, size int64, t time.Time, filename string) *message.Message {
 	h := header(headerCodeURIDone, headerDescriptionURIDone)
-	uriField := field(fieldNameURI, s3Uri.String())
+	uriField := field(fieldNameURI, s3Uri)
 	filenameField := field(fieldNameFilename, filename)
 	sizeField := field(fieldNameSize, strconv.FormatInt(size, 10))
 	lmField := m.lastModified(t)
@@ -465,9 +485,9 @@ func (m *Method) uriDone(s3Uri *url.URL, size int64, t time.Time, filename strin
 // 400 URI Failure
 // Message: The specified key does not exist.
 // URI: s3://fake-access-key-id:fake-secret-access-key@s3.amazonaws.com/bucket-name/apt/trusty/riemann-sumd_0.7.2-1_all.deb
-func notFound(s3Uri *url.URL) *message.Message {
+func notFound(uri string) *message.Message {
 	h := header(headerCodeURIFailure, headerDescriptionURIFailure)
-	uriField := field(fieldNameURI, s3Uri.String())
+	uriField := field(fieldNameURI, uri)
 	messageField := field(fieldNameMessage, fieldValueNotFound)
 	return &message.Message{Header: h, Fields: []*message.Field{uriField, messageField}}
 }
@@ -495,8 +515,8 @@ func generalFailure(err error) *message.Message {
 	return &message.Message{Header: h, Fields: []*message.Field{messageField}}
 }
 
-func (m *Method) outputRequestStatus(s3Uri *url.URL, status string) {
-	msg := requestStatus(s3Uri, status)
+func (m *Method) outputRequestStatus(uri string, status string) {
+	msg := requestStatus(uri, status)
 	m.stdout.Println(msg.String())
 }
 
@@ -505,14 +525,14 @@ func (m *Method) outputGeneralLog(status string) {
 	m.stdout.Println(msg.String())
 }
 
-func (m *Method) outputURIStart(s3Uri *url.URL, size int64, lastModified time.Time) {
+func (m *Method) outputURIStart(s3Uri string, size int64, lastModified time.Time) {
 	msg := m.uriStart(s3Uri, size, lastModified)
 	m.stdout.Println(msg.String())
 }
 
 // outputURIDone prints a message including the details of the finished URI,
 // and subsequently decrements the Method's sync.WaitGroup by 1.
-func (m *Method) outputURIDone(s3Uri *url.URL, size int64, lastModified time.Time, filename string) {
+func (m *Method) outputURIDone(s3Uri string, size int64, lastModified time.Time, filename string) {
 	msg := m.uriDone(s3Uri, size, lastModified, filename)
 	m.stdout.Println(msg.String())
 	m.wg.Done()
@@ -520,8 +540,8 @@ func (m *Method) outputURIDone(s3Uri *url.URL, size int64, lastModified time.Tim
 
 // outputURIDone prints a message including the details of the URI that could
 // not be found, and subsequently decrements the Method's sync.WaitGroup by 1.
-func (m *Method) outputNotFound(s3Uri *url.URL) {
-	msg := notFound(s3Uri)
+func (m *Method) outputNotFound(uri string) {
+	msg := notFound(uri)
 	m.stdout.Println(msg.String())
 	m.wg.Done()
 }
