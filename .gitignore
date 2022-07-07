@@ -1,4 +1,4 @@
 apt-golang-rclone*
 rclone-*
 .vscode
-*.workspace
+*.code-workspace
