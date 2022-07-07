@@ -19,7 +19,7 @@ before:
     - go mod tidy
 builds:
   - id: rclone
-    main: ./cmd/rclone
+    main: .
     binary: "rclone"
     ldflags: -X main.Buildtime={{.Date}} -X main.Githash={{ .FullCommit }}
     goarch:
@@ -28,12 +28,12 @@ builds:
     goos:
       - linux
 
-archives:
-  - id: "apt-transport-rclone"
-    builds: ["rclone"]
-    files:
-      - README.md
-    format: tar.gz
+#archives:
+#  - id: "apt-transport-rclone"
+#    builds: ["rclone"]
+#    files:
+#      - README.md
+#    format: tar.gz
 checksum:
   name_template: "apt-transport-rclone_{{ .Version }}_checksums.sha256sum"
 snapshot:

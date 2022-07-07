@@ -149,4 +149,3 @@ var locTests = []locTest{
 		"fake-access-key-secret",
 	},
 }
-

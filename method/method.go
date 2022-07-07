@@ -15,7 +15,7 @@
 // Package method implements functions to satisfy the method interface of the APT
 // software package manager. For more information about the APT method interface
 // see, http://www.fifi.org/doc/libapt-pkg-doc/method.html/ch2.html#s2.3.
-package main
+package method
 
 import (
 	"bufio"

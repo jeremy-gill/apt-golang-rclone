@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+
+	"github.com/jeremy-gill/apt-golang-rclone/method"
 )
 
 const (
