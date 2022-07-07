@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-
-	"github.com/google/apt-golang-s3/method"
 )
 
 const (

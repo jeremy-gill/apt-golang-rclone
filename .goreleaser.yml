@@ -19,7 +19,7 @@ before:
     - go mod tidy
 builds:
   - id: rclone
-    main: ./method
+    main: ./cmd/rclone
     binary: "rclone"
     ldflags: -X main.Buildtime={{.Date}} -X main.Githash={{ .FullCommit }}
     goarch:

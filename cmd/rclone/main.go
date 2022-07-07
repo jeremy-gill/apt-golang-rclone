@@ -15,7 +15,7 @@
 // Package method implements functions to satisfy the method interface of the APT
 // software package manager. For more information about the APT method interface
 // see, http://www.fifi.org/doc/libapt-pkg-doc/method.html/ch2.html#s2.3.
-package method
+package main
 
 import (
 	"bufio"
@@ -40,7 +40,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/google/apt-golang-s3/message"
+	"github.com/jeremy-gill/apt-golang-rclone/message"
 
 	_ "github.com/rclone/rclone/backend/all"
 	_ "github.com/rclone/rclone/backend/drive"

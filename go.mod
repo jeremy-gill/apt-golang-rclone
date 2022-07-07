@@ -1,4 +1,4 @@
-module github.com/google/apt-golang-s3
+module github.com/jeremy-gill/apt-golang-rclone
 
 go 1.13
 
