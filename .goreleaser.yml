@@ -1,0 +1,71 @@
+# This is an example goreleaser.yaml file with some sane defaults.
+# Make sure to check the documentation at http://goreleaser.com
+
+signs:
+  - artifacts: checksum
+    args:
+      [
+        "-u",
+        "97C670E2FF251892",
+        "--output",
+        "${signature}",
+        "--detach-sign",
+        "--armor",
+        "${artifact}",
+      ]
+
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: rclone
+    main: ./method
+    binary: "rclone"
+    ldflags: -X main.Buildtime={{.Date}} -X main.Githash={{ .FullCommit }}
+    goarch:
+      - amd64
+      - arm64
+    goos:
+      - linux
+
+archives:
+  - id: "taeus-apt-transport-rclone"
+    builds: ["rclone"]
+    files:
+      - README.md
+    format: tar.gz
+checksum:
+  name_template: "taeus-sigproc-tools_{{ .Version }}_checksums.sha256sum"
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+nfpms:
+  - id: "apt-transport-rclone"
+    package_name: "apt-transport-rclone"
+    builds:
+      - rclone
+    vendor: "Endra Life Sciences Inc."
+    homepage: "https://www.endrainc.com"
+    maintainer: "Jeremy Gill <jgill@endrainc.com>"
+    description: "Taeus rclone-based apt-transport plugin"
+    formats:
+      - deb
+    section: default
+    priority: extra
+    bindir: /usr/lib/apt/methods
+    dependencies:
+      - apt
+    version_metadata: git
+    contents:
+      - src: "README.md"
+        dst: "/usr/share/doc/apt-transport-rclone/README.md"
+#      - src: "man/mkdump.1"
+#        dst: "/usr/share/man/man1/mkdump.1"
+#      - src: "man/mkwaterfall.1"
+#        dst: "/usr/share/man/man1/mkwaterfall.1"
