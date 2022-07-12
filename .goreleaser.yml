@@ -61,6 +61,7 @@ nfpms:
     bindir: /usr/lib/apt/methods
     dependencies:
       - apt
+      - rclone
     version_metadata: git
     contents:
       - src: "README.md"
