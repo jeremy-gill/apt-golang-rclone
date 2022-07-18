@@ -52,7 +52,7 @@ Config-Item: Unattended-Upgrade::Allowed-Origins::=${distro_id}:${distro_codenam
 `
 
 	rcloneMsg = `600 URI Acquire
-URI: rclone://minio/apt-repo/dists/stable/main/binary-amd64/Packages
+URI: rclone://endra-taeus-apt-release/apt-repo/dists/stable/main/binary-amd64/Packages
 Filename: /tmp/Packages
 
 601 Configuration
@@ -104,6 +104,16 @@ func TestRclone(t *testing.T) {
 	method := New()
 	go method.readInput(reader)
 
+	/*
+		// environment setup
+		os.Setenv("RCLONE_CONFIG_MINIO_ACCESS_KEY_ID", "")
+		os.Setenv("RCLONE_CONFIG_MINIO_SECRET_ACCESS_KEY", "")
+
+		// or
+
+		os.Setenv("AWS_ACCESS_KEY_ID", "")
+		os.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	*/
 	//consume the messages on the channel
 	for {
 		bytes := <-method.msgChan

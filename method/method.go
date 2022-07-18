@@ -301,7 +301,7 @@ func (m *Method) uriAcquire(msg *message.Message) {
 	o, err := fsrc.NewObject(m.rcloneCtx, _infile)
 
 	if err != nil {
-		m.outputNotFound(uri)
+		m.handleError(fmt.Errorf("rclone error: %w", err))
 	}
 
 	// indicate size and modification time
