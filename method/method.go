@@ -196,7 +196,7 @@ func capabilities() *message.Message {
 func (m *Method) processMessages() {
 	for {
 		bytes := <-m.msgChan
-		go m.handleBytes(bytes)
+		m.handleBytes(bytes)
 	}
 }
 
