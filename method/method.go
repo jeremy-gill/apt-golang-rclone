@@ -46,8 +46,13 @@ import (
 	_ "github.com/rclone/rclone/backend/drive"
 	_ "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configfile"
 	"github.com/rclone/rclone/fs/operations"
+)
+
+const (
+	taeusRcloneConfig = "/etc/taeus/apt-rclone.conf"
 )
 
 const (
@@ -131,6 +136,13 @@ func New() *Method {
 
 	// initialize rclone
 	configfile.Install()
+
+	// allow site-wide rclone.conf file to be used
+	if _, err := os.Stat(config.GetConfigPath()); err != nil {
+		if _, err := os.Stat(taeusRcloneConfig); err == nil {
+			config.SetConfigPath(taeusRcloneConfig)
+		}
+	}
 
 	return m
 }
